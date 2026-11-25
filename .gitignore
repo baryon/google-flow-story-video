@@ -1,0 +1,16 @@
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Local build / temp artifacts
+build/
+dist/
+.tmp-*/
+*.mp4
+*.wav
+*.mp3

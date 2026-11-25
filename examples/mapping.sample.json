@@ -1,0 +1,4 @@
+{
+  "s01": "https://flow-content.google/video/00000000-0000-0000-0000-000000000001?Expires=1800000000&KeyName=labs-flow-prod-cdn-key&Signature=REPLACE_WITH_SIGNED_URL",
+  "s02": "https://flow-content.google/video/00000000-0000-0000-0000-000000000002?Expires=1800000000&KeyName=labs-flow-prod-cdn-key&Signature=REPLACE_WITH_SIGNED_URL"
+}
