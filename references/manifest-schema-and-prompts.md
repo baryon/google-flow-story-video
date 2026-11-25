@@ -1,12 +1,52 @@
-# Manifest Schemas & Google Flow Prompt Formulas
+# Manifest Schemas, Character Bible & Google Flow Prompt Formulas
 
-本文档定义 Mode VO（旁白史诗模式）与 Mode C（角色演戏对话模式）的 JSON 数据规范、内置音床预设、提示词公式及字幕排版上限。
+本文档定义角色与光影圣经（`bible.json`）、Mode VO（旁白史诗/长片模式）、Mode C（角色演戏对话模式）的 JSON 规范、内置音床预设与提示词公式。
 
 ---
 
-## 1. Mode VO 清单规范：`episodes.json` & `mapping.json`
+## 1. 角色与光影圣经规范：`bible.json`（传给 `compile_prompts.py`）
 
-`build_audio_and_srt.py` 与 `package_season.py` 共用 `episodes.json`：
+跨多集或 10 分钟（70–80 镜）长片制作时，先建立统一的 `bible.json`，由 `compile_prompts.py` 自动注入每镜提示词并前置拦截「>2 张参考图」与「台词超词数」错误：
+
+```json
+{
+  "style_anchor": "stylized hand-painted anime cinema aesthetic, rich atmospheric depth",
+  "lighting_anchor": "deep twilight indigo shadows with warm amber lantern rim light",
+  "aspect_suffix": "full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.",
+  "non_humanoid_guard": false,
+  "characters": {
+    "luna": {
+      "name": "Luna",
+      "ingredient": "char-luna.png",
+      "visual_tag": "this petite silver-haired lantern keeper wearing a weathered indigo cloak",
+      "voice_tag": "crisp, expressive young female voice with playful urgency"
+    },
+    "pip": {
+      "name": "Pip",
+      "ingredient": "char-pip.png",
+      "visual_tag": "this tiny clockwork brass owl with glowing amber glass eyes",
+      "voice_tag": "dry, deadpan miniature mechanical voice"
+    }
+  },
+  "locations": {
+    "watchtower": {
+      "ingredient": "loc-watchtower.png",
+      "visual_tag": "this wind-swept cliffside stone watchtower lit by a swaying brass lantern"
+    }
+  }
+}
+```
+
+### 占位符与结构化简写语法
+
+1. **内联占位符**：在任意 `flow_prompt` 中写 `{{char:luna}}`、`{{voice:luna}}`、`{{loc:watchtower}}`，`compile_prompts.py` 会自动替换为对应描述词，并将关联的 `ingredient` 文件名记入该镜 `ingredients` 数组（超过 2 张自动报警/阻断）。
+2. **Mode C 结构化简写**：分镜条目可省略手写 `flow_prompt`，直接填写 `"location": "watchtower"`、`"speaker": "luna"`、`"camera": "Medium vertical shot"`、`"action": "lifts the lantern in disbelief"`、`"line": "Wait—who lit the signal fire?!"`，脚本会自动拼出完整的带音色锚点与 `4.5s 对白 + 3s 反应` 护栏的标准英文 Prompt。
+
+---
+
+## 2. Mode VO 清单规范：`episodes.json` & `mapping.json`
+
+`build_audio_and_srt.py`、`build_animatic.py` 与 `package_season.py` 共用 `episodes.json`：
 
 ```json
 {
@@ -36,25 +76,9 @@
 }
 ```
 
-### `episodes.json` 字段说明
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `ep` | `number` | 是 | 集数序号（从 `1` 开始） |
-| `slug` | `string` | 是 | 分集目录标识（如 `"ep01"`） |
-| `title_en` / `title_ja` / `title_zh` | `string` | 推荐 | 英 / 日 / 中分集标题，用于生成 YouTube 章节与交付清单 |
-| `tone` | `string` | 否 | 内置立体声氛围音床预设名，默认 `"mythic"` |
-| `scenes[].id` | `string` | 是 | 镜号（如 `"s01"`..`"s09"`），需与 `mapping.json` 键名一致 |
-| `scenes[].vo` | `string` | Mode VO 必填 | 送入 `edge-tts` 的英文旁白原文（单行纯文本） |
-| `scenes[].lead_in` | `number` | 否 | 镜头切入后到旁白开口前的留白秒数，默认 `0.32` |
-| `scenes[].pad_after` | `number` | 否 | 旁白结束到切下一镜前的尾音留白秒数，默认 `0.65` |
-| `scenes[].en` / `ja` / `zh` | `string` | 推荐 | 对应 `.en.srt` / `.ja.srt` / `.zh-Hans.srt` 的双行字幕文本（可选 `zh_hant`、`ko`） |
-| `scenes[].flow_mode` | `string` | 否 | 记录该镜使用 `Text to Video` 还是挂载哪 1–2 张 Ingredient |
-| `scenes[].flow_prompt` | `string` | 否 | 发送给 Google Flow 的英文生成提示词 |
-
 ### `mapping.json`（传给 `assemble_episode.py`）
 
-将分镜 ID 映射到 Google Flow 签名 CDN 视频直链（`https://flow-content.google/video/...`）或本地 `.mp4` 路径：
+将分镜 ID 映射到 Google Flow 签名 CDN 视频直链或本地 `.mp4` 路径（重抽某镜后只需替换该镜 URL，脚本会自动识别 UUID 变更并仅重编该镜）：
 
 ```json
 {
@@ -65,9 +89,9 @@
 
 ---
 
-## 2. Mode C 角色演戏清单规范：`dialogue-episode.json`
+## 3. Mode C 角色演戏清单规范：`dialogue-episode.json`
 
-传给 `assemble_dialogue_episode.py`，用于合成三幕微长镜（保留 Flow 原生角色口型对白 + 48kHz PCM 拼接 + 全程自动闪避 BGM）：
+传给 `assemble_dialogue_episode.py`，用于合成三幕微长镜（或经尾帧接力扩展的多段演戏片段）：
 
 ```json
 {
@@ -98,13 +122,11 @@
 }
 ```
 
-> **提示**：全季打包时，只需把每集的元信息（`ep`、`slug`、`title_en`、`title_ja`、`title_zh`）列在顶层 `episodes.json` 中（`scenes` 可留空数组 `[]`），即可直接复用 `package_season.py` 一键生成全季无损合集与 YouTube 章节。
-
 ---
 
-## 3. 内置 `tone` 立体声氛围音床预设
+## 4. 内置 `tone` 立体声氛围音床预设
 
-`build_audio_and_srt.py` 与 `assemble_dialogue_episode.py` 均内置以下 8 种 48kHz 立体声调性音床（也可通过 `--bgm` 传入自定义音乐文件）：
+`build_audio_and_srt.py` 与 `assemble_dialogue_episode.py` 均内置以下 8 种 48kHz 立体声调性音床（也可通过 `--bgm` 传入外部音乐）：
 
 | `tone` 值 | 调性与声学特征 | 适用剧情 |
 |---|---|---|
@@ -119,9 +141,9 @@
 
 ---
 
-## 4. Ingredients 定妆图提示词与防漂移清单
+## 5. Ingredients、`Frames` 首尾帧与视频提示词公式
 
-准备全季共享的 6–8 张 Ingredients 参考图时，遵循以下模板（注意**不要写 `dark lower third`**，以免生图阶段带入底部硬黑边）：
+### 5.1 Ingredients 定妆图提示词模板（严禁写 `dark lower third`）
 
 ```text
 [Subject / Environment core design], [consistent art style & lighting palette],
@@ -130,48 +152,30 @@ full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders,
 STRICTLY NO text, NO watermark, NO UI.
 ```
 
-- **非人类题材必加约束**：`STRICTLY NO humans, NO human faces, NO humanoid torso, NO mermaids.`
-- **动画风格题材必加约束**：明确写出统一画风锚点（如 `stylized hand-painted anime film aesthetic` 或 `warm stylized 3D animated feature film look`），防止部分参考图漂移成写实真人摄影。
-- 生成后必须逐张使用 `read_file` 肉眼检查，确认无黑边、无文字、无人形误画后再上传至 Google Flow。
+- **非人类题材必加**：`STRICTLY NO humans, NO human faces, NO humanoid torso, NO mermaids.`
+- **动画风格题材必加**：固定画风锚点词，逐张 `read_file` 肉眼确认无写实漂移、无文字、无黑边后再上传。
 
----
+### 5.2 何时用 `Ingredients` vs 何时用 `Frames（首尾帧）`
 
-## 5. Google Flow（`Omni 1.2 Flash`）视频提示词公式
+| 场景 | 正确模式 | 挂图方式 |
+|---|---|---|
+| 常规叙事分镜 / 角色开口演戏 | `Ingredients / 素材` | 挂 **1–2 张**定妆图（严禁 ≥ 3 张防串色） |
+| **同场超过 15s 继续演戏 / 局部重抽后 8s** | `Frames / 首尾帧`（**真视频尾帧接力法**） | 用 `extract_relay_frame.py` 取上一段清晰尾帧放进**首帧槽位**（**不放尾帧**），保持第 1 代满血清晰度且无果冻变形 |
+| **跨阶段形态进化 / 破茧蜕变 / 时空平滑流转** | `Frames / 首尾帧` | 首帧放形态 A 定妆图，尾帧放形态 B 定妆图，描述流体蜕变光影动作 |
 
-### 5.1 通用硬约束（Mode VO 与 Mode C 均须遵守）
+### 5.3 Mode VO 镜头五段式公式（8s）
 
-1. **单镜最多挂载 2 张 Ingredients 参考图**：严禁单镜挂 3 张及以上（如 `场景 + 主角 + 配角`），否则极易触发角色配色互染。单人镜挂 `场景 + 角色A`；双人戏挂 `角色A + 角色B` 并文字描述环境，或从 `场景 + 角色A` 首拍用 SceneBuilder `Extend / 続きを生成` 引入 `角色B`。
-2. **固定防黑边结尾后缀**：
-   ```text
-   full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.
-   ```
+1. **景别与运镜** + 2. **`"this ..."` 素材锚点** + 3. **单一 8s 物理/光影动作** + 4. **画风与防人形护栏** + 5. **固定后缀**：`full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.`
 
-### 5.2 Mode VO 纯画面镜头五段式公式（8s）
+### 5.4 Mode C 角色开口演戏公式（首拍 8s + 续写/接力拍）
 
-1. **景别与运镜**：`Extreme macro cinema shot` / `Sweeping wide vertical diving shot` / `Slow pull-back reveal shot`
-2. **Ingredient 锚点**：用 `"this ..."` 指向所挂参考图（如 `"this tiny translucent glowing emerald-gold spore"`）。
-3. **单一核心动作**：只写 **1 个** 8 秒内可舒展完成的物理或光影变化，不堆砌多段转折。
-4. **风格/物种护栏**：按需加入 `"purely non-humanoid, no humans, no human faces"` 或统一动画画风词。
-5. **固定防黑边后缀**：`full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.`
-
-### 5.3 Mode C 角色开口演戏公式（首拍 8s + SceneBuilder 续写拍）
-
-- **首拍（8s，台词 ≤ 10–12 英文词）**：
-  ```text
-  [Shot scale & camera movement], inside [this environment / scene description],
-  [this Character A] [clear facial acting & physical gesture], speaking aloud in a [voice timbre & emotion, e.g., crisp playful young female voice]:
-  "[Exact line <= 10-12 words]!"
-  Spoken dialogue finishes in the first 4.5 seconds, followed by 3 seconds of expressive reaction and subtle ambient sound,
-  [consistent art style anchor], full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.
-  ```
-- **同幕 SceneBuilder 续写拍（`Extend` / `続きを生成` 1 次，`+7s`/`+8s`，尾钩可 `+10s`）**：
-  ```text
-  Seamless continuation in the same scene, camera [subtle push-in / pan to Character B],
-  [Character B / Character A] reacts with [gesture/expression] and replies in a [voice timbre & emotion]:
-  "[Exact reply <= 10-12 words]."
-  Spoken dialogue in the first 4.5 seconds, leaving 2.5 seconds of dramatic reaction beat before cut,
-  full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.
-  ```
+```text
+[Shot scale & camera movement], inside [this environment / scene description],
+[this Character A] [clear facial acting & physical gesture], speaking aloud in a [voice_tag from bible.json]:
+"[Exact line <= 10-12 words]!"
+Spoken dialogue finishes in the first 4.5 seconds, followed by 3 seconds of expressive reaction and subtle ambient sound,
+[style_anchor], [lighting_anchor], full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.
+```
 
 ---
 

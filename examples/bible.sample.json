@@ -1,0 +1,26 @@
+{
+  "style_anchor": "stylized hand-painted anime cinema aesthetic, rich atmospheric depth",
+  "lighting_anchor": "deep twilight indigo shadows with warm amber lantern rim light",
+  "aspect_suffix": "full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.",
+  "non_humanoid_guard": false,
+  "characters": {
+    "luna": {
+      "name": "Luna",
+      "ingredient": "char-luna.png",
+      "visual_tag": "this petite silver-haired lantern keeper wearing a weathered indigo cloak",
+      "voice_tag": "crisp, expressive young female voice with playful urgency"
+    },
+    "pip": {
+      "name": "Pip",
+      "ingredient": "char-pip.png",
+      "visual_tag": "this tiny clockwork brass owl with glowing amber glass eyes",
+      "voice_tag": "dry, deadpan miniature mechanical voice"
+    }
+  },
+  "locations": {
+    "watchtower": {
+      "ingredient": "loc-watchtower.png",
+      "visual_tag": "this wind-swept cliffside stone watchtower lit by a swaying brass lantern"
+    }
+  }
+}

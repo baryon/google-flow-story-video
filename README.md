@@ -1,16 +1,16 @@
 # google-flow-story-video
 
-面向 AI 编程与创作代理（Antigravity、Claude Code、Gemini CLI、Codex 等）的 **Google Flow 连续故事视频全流程制作 Skill**。内置两套经过多季实拍验证的制片工艺——**旁白史诗宣传片模式（Mode VO）**与**角色开口演戏动画剧模式（Mode C）**，打通分集叙事策划、定妆锁脸、Chrome 远程接管 [Google Flow](https://flow.google.com/) 生成、免弹窗签名 CDN 直链拉取，以及 `ffmpeg` 无痕母带压制与全季无损合集打包的完整闭环。
+面向 AI 编程与创作代理（Antigravity、Claude Code、Gemini CLI、Codex 等）的 **Google Flow 连续故事短剧与 10 分钟级长片全流程制作 Skill**。内置**旁白史诗模式（Mode VO）**与**角色开口演戏模式（Mode C）**双管线，覆盖「角色与光影圣经」自动拼词、零积分有声故事板预审、Chrome 接管 [Google Flow](https://flow.google.com/) 生成、真视频尾帧接力、免弹窗签名 CDN 直链拉取，以及单镜增量热替换合成与全季无损合集打包。
 
-适合制作产品/游戏世界观宣传片、皮克斯/吉卜力式连载动画短剧、TikTok / YouTube Shorts 竖屏连续剧及 YouTube 全季合集长片。Agent 执行规范见 [SKILL.md](./SKILL.md)，JSON 清单与提示词公式见 [references/manifest-schema-and-prompts.md](./references/manifest-schema-and-prompts.md)。
+Agent 执行细则见 [SKILL.md](./SKILL.md)，JSON 清单与提示词公式见 [references/manifest-schema-and-prompts.md](./references/manifest-schema-and-prompts.md)。
 
 ```mermaid
 flowchart TD
-  Plan["1. 总纲与分集策划\n先锁整季主线 + 首集审阅"] --> Assets["2. 全季共享资产\nIngredients 定妆 + render_endslates.mjs"]
+  Plan["1. 分章总纲 + 角色光影圣经\nbible.json + compile_prompts.py"] --> Assets["2. 共享资产与预审\nIngredients 质检 + render_endslates.mjs"]
   Assets --> Mode{"双模式管线"}
-  Mode -->|"Mode VO · 旁白史诗"| VO["build_audio_and_srt.py 声音先行\n8-9 个 8s 镜头 -> assemble_episode.py"]
-  Mode -->|"Mode C · 角色演戏"| MC["三幕 x 15-18s 微长镜原生口型对白\nPCM 拼接 + 自动闪避 BGM -> assemble_dialogue_episode.py"]
-  VO --> Pack["5x3 十五帧缩略图质检 + package_season.py 全季无损打包"]
+  Mode -->|"Mode VO · 旁白史诗 / 10min 长片"| VO["build_audio_and_srt.py 声音先行\n可选 build_animatic.py 零积分故事板预审\nassemble_episode.py 单镜增量缓存秒拼"]
+  Mode -->|"Mode C · 角色演戏"| MC["三幕 15-18s 微长镜 或 extract_relay_frame.py 尾帧接力\n48kHz PCM 拼接 + 自动闪避 BGM\nassemble_dialogue_episode.py"]
+  VO --> Pack["5x3 十五帧缩略图质检 + package_season.py 秒拼 10min+ 长片"]
   MC --> Pack
 ```
 
@@ -18,18 +18,18 @@ flowchart TD
 
 ## 核心能力
 
-1. **双模式制片架构（旁白史诗 vs 角色直接演戏）**
-   - **Mode VO（声音先行）**：`edge-tts` 先生成英文神经旁白并实测毫秒级时长，反推 8–9 个独立 8 秒镜头的精确秒数（单集 `60–75s`），适合宏大设定与预告片；
-   - **Mode C（三幕 × 15–18s 微长镜）**：每幕在 SceneBuilder 最多续写 1 次（`8s + 7~8s`，尾钩可 `+10s`，单集 `48–55s`），兼顾同场零跳切与高画质锐度，完整保留角色原生口型、笑声与情绪对白。
-2. **实战级防翻车护栏（防黑边 · 防串色 · 防风控）**
-   - 统一强制 `full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox` 后缀（替代易诱发硬黑边的 `dark lower third`），底部字幕暗化全部交由本地 `ffmpeg geq` 幂函数透明渐变无痕叠加；
-   - `Omni 1.2 Flash` 单镜严格限制 **≤ 2 张 Ingredients 参考图**杜绝角色串色，浏览器每次提交保持 **8–12 秒**自然间隔规避异常活动风控。
-3. **广播级音频工程（48kHz PCM 拼接 + 自动闪避 BGM + 零死寂校验）**
-   - 摒弃易导致尾段丢声的多段 AAC `-c copy` 硬拼，统一解码为 **48kHz 立体声 PCM** 后拼接；
-   - 内置 8 种调性的立体声氛围合成器（亦支持 `--bgm` 外部配乐），通过 `sidechaincompress` 在角色开口时自动压低配乐、反应拍柔和托起，并自动执行 `silencedetect` 零死寂检测与音画时长差 `< 0.35s` 硬断言。
-4. **免弹窗签名 CDN 直链下载与 15 帧可视化质检**
-   - 直接读取 `flow-content.google` 签名视频直链并用 `curl` 高速拉取，彻底绕开 Chrome 远程下载产生 `.com.google.Chrome.*` 隐藏临时文件及串镜错位问题；
-   - 每集自动生成 `qa-contact-5x3.png`（全片 15 帧 `5×3` 缩略图矩阵）供视觉质检，收官阶段 `ffmpeg -f concat -c copy` 零重编码秒拼全季大电影并生成 YouTube Chapters。
+1. **双模式制片 + 10 分钟级模块化拆章**
+   - **Mode VO（旁白史诗 / 10 分钟长片）**：将 10 分钟长片拆为 8–10 个独立 60s 章节，`edge-tts` 声音先行测准毫秒级时间轴；支持在投入视频积分前通过 `build_animatic.py` 一键合成**零积分有声动态故事板（Animatic）**前置审片；
+   - **Mode C（角色直接开口演戏）**：采用「三幕 × 15–18s 微长镜（SceneBuilder 单次续写）」黄金时序；遇到需要 24–32s 连续同场戏或局部重抽后半拍时，使用 `extract_relay_frame.py` **真视频尾帧接力法**重置第 1 代满血画质。
+2. **结构化「角色与光影圣经（`bible.json`）」自动编译校验**
+   - `compile_prompts.py` 将全局画风、光影色温及每个角色的固定外观词（`visual_tag`）与声线词（`voice_tag`）程序化注入每条提示词，跑完 80 个镜头零漂移；
+   - 开拍前自动静态拦截「单镜超过 2 张参考图（防串色）」「单拍台词超过 12 词（防 8s 切词）」及自动补齐 `full-bleed 9:16 edge-to-edge, NO black bars` 防黑边后缀。
+3. **广播级混音与单镜级秒级热替换缓存**
+   - 统一采用 **48kHz 立体声 PCM 解码拼接**（杜绝多段 AAC `-c copy` 尾段丢声），内置 8 种调性氛围合成器 + `sidechaincompress` 对白自动闪避 + `silencedetect` 零死寂校验 + 音画同步 `< 0.35s` 硬断言；
+   - 内置 URL 指纹追踪（`raw/<id>.url`）与 SHA-256 分镜签名缓存（`*.sig`）：哪一镜抽崩了只需重跑那 8 秒并替换 URL，重跑脚本将 **0 毫秒跳过其余所有未改镜头**，数秒内热更新整条成片。
+4. **免弹窗签名 CDN 直链下载与 15 帧矩阵质检**
+   - 直接提取 `flow-content.google` 签名视频直链并用 `curl` 高速拉取，彻底避开 Chrome 下载隐藏临时文件（`.com.google.Chrome.*`）与串镜问题；
+   - 每集自动输出 `qa-contact-5x3.png`（全片 15 帧 `5×3` 缩略图矩阵），收官阶段 `ffmpeg -f concat -c copy` 零重编码秒拼全季/10 分钟长片并生成 YouTube Chapters。
 
 ---
 
@@ -58,9 +58,9 @@ ln -sfn ../../../.agents/skills/google-flow-story-video ~/.gemini/config/skills/
 
 | 依赖项 | 用途 | macOS 安装示例 |
 |---|---|---|
-| `Python >= 3.10` | 运行配音、单集合成（Mode VO / Mode C）与全季打包脚本 | 系统自带或 `brew install python` |
+| `Python >= 3.10` | 运行圣经编译、配音、故事板、单集合成与全季打包脚本 | 系统自带或 `brew install python` |
 | `Node.js >= 18` | 运行零依赖矢量片尾渲染脚本 | `brew install node` |
-| `ffmpeg` / `ffprobe` | PCM 拼接、侧链自动闪避、透明渐变叠加、封装与 15 帧抽检 | `brew install ffmpeg` |
+| `ffmpeg` / `ffprobe` | PCM 拼接、侧链自动闪避、尾帧提取、透明渐变与 15 帧抽检 | `brew install ffmpeg` |
 | `edge-tts` 或 `uv` | Mode VO 生成神经旁白（优先查找 `edge-tts`，自动回退 `uvx`） | `pipx install edge-tts` 或 `brew install uv` |
 | `Google Chrome` | 远程接管 Google Flow 及无头渲染 `1080×1920` 品牌矢量落版 | 已登录 Google 账号的本机 Chrome |
 
@@ -70,54 +70,63 @@ ln -sfn ../../../.agents/skills/google-flow-story-video ~/.gemini/config/skills/
 
 ### 1. 在 AI Agent 中直接调用
 
-1. 打开本机 Chrome 访问 `chrome://inspect/#remote-debugging`，勾选开启远程调试（确认显示 `Server running at: 127.0.0.1:9222`）。
-2. 发送指令示例：
-   - **旁白史诗模式（Mode VO）**：
-     > 使用 `google-flow-story-video` 的旁白模式，基于项目世界观策划一季 10 集竖屏宣传片（片尾域名 `example.com`），先给我审阅总纲和第 1 集三语脚本。
-   - **角色演戏模式（Mode C）**：
-     > 使用 `google-flow-story-video` 的 Mode C 角色对话动画模式，策划一季连载动画短剧（三幕 15 秒微长镜，角色直接开口对白），先输出整季总故事大纲与第 1 集三幕剧本。
+打开本机 Chrome 访问 `chrome://inspect/#remote-debugging` 勾选开启远程调试（`127.0.0.1:9222`），然后发送指令：
 
-### 2. 命令行独立运行验证
+- **10 分钟长片 / 旁白连载（Mode VO）**：
+  > 使用 `google-flow-story-video` 策划一部 10 分钟（拆 8 章）的世界观宣传长片，先建立 `bible.json` 和分章脚本，生成零积分有声故事板给我审节奏，通过后再进 Google Flow 出片合成。
+- **角色开口演戏短剧（Mode C）**：
+  > 使用 `google-flow-story-video` 的 Mode C 模式制作连载动画短剧，先锁整季总纲、`bible.json` 角色音色与第 1 集三幕剧本。
+
+### 2. 命令行工具链速览
 
 ```bash
 SKILL_DIR="$HOME/.agents/skills/google-flow-story-video"
 
-# 渲染 1080x1920 官方矢量片尾落版（两种模式通用）
+# 1) 基于角色与光影圣经自动注入提示词并校验 <=2 张参考图 / <=12 词限制
+python3 "$SKILL_DIR/scripts/compile_prompts.py" \
+  --bible "$SKILL_DIR/examples/bible.sample.json" \
+  --manifest "$SKILL_DIR/examples/episodes.sample.json" \
+  --out /tmp/demo-build/episodes.compiled.json \
+  --sheet-out /tmp/demo-build/flow-shotlist.md
+
+# 2) 渲染 1080x1920 官方矢量片尾落版
 node "$SKILL_DIR/scripts/render_endslates.mjs" \
   --logo "$SKILL_DIR/examples/sample-logo.svg" \
-  --series "THE BOOK OF LIFE" \
-  --volume "VOLUME I" \
-  --domain "example.com" \
-  --count 1 \
-  --out-dir /tmp/demo-build/endslates
+  --series "THE BOOK OF LIFE" --volume "VOLUME I" --domain "example.com" \
+  --count 1 --out-dir /tmp/demo-build/endslates
 
-# [Mode VO] 生成配音、毫秒级 timeline.json、多语 .srt 与氛围母带，再合成单集
+# 3) [Mode VO] 生成配音与字幕 -> 先出零积分有声故事板预审 -> Flow 出片后增量热替换合成
 python3 "$SKILL_DIR/scripts/build_audio_and_srt.py" \
-  --manifest "$SKILL_DIR/examples/episodes.sample.json" \
-  --out-dir /tmp/demo-build/audio
+  --manifest /tmp/demo-build/episodes.compiled.json --out-dir /tmp/demo-build/audio
+
+python3 "$SKILL_DIR/scripts/build_animatic.py" \
+  --timeline /tmp/demo-build/audio/ep01/timeline.json \
+  --audio /tmp/demo-build/audio/ep01/ep01-audio-master.wav \
+  --endslate /tmp/demo-build/endslates/ep01-endslate.png \
+  --srt-dir /tmp/demo-build/audio/ep01 \
+  --out /tmp/demo-build/animatics/ep01-animatic.mp4
 
 python3 "$SKILL_DIR/scripts/assemble_episode.py" \
   --timeline /tmp/demo-build/audio/ep01/timeline.json \
   --audio /tmp/demo-build/audio/ep01/ep01-audio-master.wav \
   --endslate /tmp/demo-build/endslates/ep01-endslate.png \
-  --mapping ./mapping.json \
-  --srt-dir /tmp/demo-build/audio/ep01 \
+  --mapping ./mapping.json --srt-dir /tmp/demo-build/audio/ep01 \
   --out-dir /tmp/demo-build/masters/ep01
 
-# [Mode C] 三幕原生对白 PCM 拼接 + 全程自动闪避 BGM + 零死寂校验 + 5x3 缩略图抽检
+# 4) [Mode C] 提取清晰尾帧做 24s+ 尾帧接力（按需） & 三幕原生对白合成
+python3 "$SKILL_DIR/scripts/extract_relay_frame.py" \
+  --src ./act1-part1.mp4 --out ./.tmp-flow-ingredients/relay-act1.png
+
 python3 "$SKILL_DIR/scripts/assemble_dialogue_episode.py" \
   --episode ./dialogue-episode.json \
   --endslate /tmp/demo-build/endslates/ep01-endslate.png \
-  --srt-dir /tmp/demo-build/subs/ep01 \
   --out-dir /tmp/demo-build/masters/ep01
 
-# 全季无损合集打包（Mode VO 与 Mode C 通用）
+# 5) 零重编码秒拼全季 / 10 分钟完整长片 + YouTube Chapters
 python3 "$SKILL_DIR/scripts/package_season.py" \
-  --manifest "$SKILL_DIR/examples/episodes.sample.json" \
-  --masters-dir /tmp/demo-build/masters \
-  --audio-dir /tmp/demo-build/audio \
-  --series-slug demo-series-s1 \
-  --site-url https://example.com \
+  --manifest /tmp/demo-build/episodes.compiled.json \
+  --masters-dir /tmp/demo-build/masters --audio-dir /tmp/demo-build/audio \
+  --series-slug demo-series-s1 --site-url https://example.com \
   --out-dir /tmp/demo-build/dist
 ```
 
@@ -127,18 +136,22 @@ python3 "$SKILL_DIR/scripts/package_season.py" \
 
 ```text
 google-flow-story-video/
-├── SKILL.md                                  # 核心工作流规范（双模式选型、叙事、防坑铁律、浏览器与下载）
-├── README.md                                 # 仓库说明与快速上手指南
+├── SKILL.md                                  # 核心工作流规范（双模式、10min 拆章、尾帧接力、防坑铁律）
+├── README.md                                 # 仓库说明与工具链速查
 ├── LICENSE                                   # MIT 开源协议
 ├── references/
-│   └── manifest-schema-and-prompts.md        # Mode VO / Mode C JSON 规范、音床预设与提示词公式
+│   └── manifest-schema-and-prompts.md        # bible.json / Mode VO / Mode C 规范与提示词公式
 ├── scripts/
-│   ├── build_audio_and_srt.py                # [Mode VO] 配音测时、多语 .srt 生成与氛围音轨混音
-│   ├── assemble_episode.py                   # [Mode VO] 直链拉流、无痕渐变、弹性对齐与 5x3 抽帧质检
-│   ├── assemble_dialogue_episode.py          # [Mode C] 三幕 PCM 拼接、侧链自动闪避 BGM 与零死寂校验
+│   ├── compile_prompts.py                    # [通用] 角色与光影圣经自动拼词及 <=2 图 / <=12 词前置校验
+│   ├── extract_relay_frame.py                # [通用] 提取视频最清晰尾帧用于 Frames 首帧接力（突破 15s）
 │   ├── render_endslates.mjs                  # [通用] 无头 Chrome 渲染官方矢量品牌落版（零 npm 依赖）
-│   └── package_season.py                     # [通用] 分集整理、无损全季合集拼接与 YouTube Chapters 生成
+│   ├── build_audio_and_srt.py                # [Mode VO] 配音测时、多语 .srt 生成与氛围音轨混音
+│   ├── build_animatic.py                     # [Mode VO] 跑 Flow 前生成零积分有声动态故事板（Animatic）
+│   ├── assemble_episode.py                   # [Mode VO] 直链拉流、增量缓存秒级热替换与 5x3 缩略图质检
+│   ├── assemble_dialogue_episode.py          # [Mode C] 三幕 PCM 拼接、自动闪避 BGM、增量缓存与零死寂校验
+│   └── package_season.py                     # [通用] 分集整理、无损全季/10min 长片拼接与 YouTube Chapters
 └── examples/
+    ├── bible.sample.json                     # 角色外观、声线与全局光影圣经示例
     ├── episodes.sample.json                  # Mode VO 分集清单示例
     ├── dialogue-episode.sample.json          # Mode C 三幕角色演戏清单示例
     ├── mapping.sample.json                   # Google Flow 签名直链映射表模板
@@ -149,17 +162,10 @@ google-flow-story-video/
 
 ## 常见问题排障
 
-### 1. 连接 Chrome 时报 `EPERM: operation not permitted, open '.../DevToolsActivePort'`
-macOS 隐私沙盒默认阻止未授权进程读取 `~/Library/Application Support/Google/Chrome/DevToolsActivePort`。打开「**系统设置 → 隐私与安全性 → 完全磁盘访问权限**」，勾选当前 Agent CLI 可执行文件（如 `~/.local/bin/agy`）与终端应用（如 `Terminal.app`、`iTerm.app`、`Herdr.app`），重连即可。
-
-### 2. 上传 Ingredients 参考图时报 `Access denied`
-`chrome_devtools` 的 `upload_file` 仅允许读取当前工作区根目录内的路径。先将质检通过的参考图复制到 `<workspace>/.tmp-flow-ingredients/` 完成一次性上传，确认上传成功后立即删除 `.tmp-flow-ingredients/`。
-
-### 3. Google Flow 底部看不到模型（`Omni 1.2 Flash`）和比例选择栏
-新建项目后默认开启了输入框内的 **`Flow Agent` / `Flow 智能体` / `Flow エージェント`** 对话开关。先关闭该开关，底部即会展开完整的 `Video`、`Ingredients`、`Omni 1.2 Flash`、`9:16`、`x1` 参数栏。
-
-### 4. 拉取 `flow-content.google` 链接返回 HTTP 403
-签名 CDN 直链有效期约为 6 小时。重新打开对应的 Google Flow 项目页读取最新 `video.currentSrc` 更新 JSON 即可直接拉流，无需重新消耗积分生成视频。
+- **连接 Chrome 报 `EPERM: operation not permitted, open '.../DevToolsActivePort'`**：在 macOS「系统设置 → 隐私与安全性 → 完全磁盘访问权限」勾选当前 Agent CLI（如 `~/.local/bin/agy`）与宿主终端 App。
+- **上传参考图报 `Access denied`**：先将参考图或接力尾帧复制到 `<workspace>/.tmp-flow-ingredients/` 上传，完成后立即删除该临时目录。
+- **底部看不到 `Omni 1.2 Flash` 参数栏**：关闭输入框内的 `Flow Agent` / `Flow 智能体` / `Flow エージェント` 开关即可展开。
+- **拉取 `flow-content.google` 返回 HTTP 403**：签名直链约 6 小时过期，回 Flow 项目页刷新读取最新 `video.currentSrc` 即可（未换镜的已缓存片段不会重复重编）。
 
 ---
 
