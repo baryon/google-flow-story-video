@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-Download signed Google Flow CDN URLs (or use local clips), apply a seamless bottom subtitle gradient,
-fit exact scene durations, append the official vector end slate, mix the audio master, mux external
-multi-language soft subtitle tracks, and extract QA stills for visual inspection.
+Assemble a finished Mode VO Google Flow episode master:
+- Download signed Google Flow CDN URLs (or use local clips)
+- Apply seamless geq power-curve bottom gradient (zero hard seam)
+- Stretch/fit exact scene durations against voiceover timeline.json
+- Append crisp vector end slate and mix episode audio master
+- Assert audio/video duration sync (< 0.35s)
+- Mux multi-language soft subtitle tracks and render 5x3 15-frame QA contact sheet
 """
 import argparse
 import json
@@ -28,6 +32,21 @@ def probe_dur(path: str) -> float:
     return float(out)
 
 
+def probe_stream_dur(path: str, stream_sel: str) -> float:
+    out = subprocess.check_output(
+        [
+            "ffprobe", "-v", "error", "-select_streams", stream_sel,
+            "-show_entries", "stream=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1", path,
+        ],
+        text=True,
+    ).strip().splitlines()
+    for line in out:
+        if line and line != "N/A":
+            return float(line)
+    return probe_dur(path)
+
+
 def ensure_bottom_gradient(path: str, width: int, height: int):
     if os.path.exists(path):
         return
@@ -44,8 +63,24 @@ def ensure_bottom_gradient(path: str, width: int, height: int):
     )
 
 
+def render_contact_sheet(video_path: str, out_png: str, total_dur: float, width: int, height: int):
+    usable = max(1.0, total_dur * 0.96)
+    fps_val = 15.8 / usable
+    thumb_w = 270 if height >= width else 384
+    thumb_h = int(round(thumb_w * height / width / 2) * 2)
+    vf = f"fps={fps_val:.6f},scale={thumb_w}:{thumb_h},tile=5x3:padding=4:margin=4:color=0x10161d"
+    subprocess.check_call(
+        [
+            "ffmpeg", "-y", "-ss", f"{total_dur * 0.02:.2f}", "-i", video_path,
+            "-vf", vf, "-frames:v", "1", out_png,
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Assemble a finished Google Flow episode master.")
+    ap = argparse.ArgumentParser(description="Assemble a finished Mode VO Google Flow episode master.")
     ap.add_argument("--timeline", required=True, help="Path to episode timeline.json")
     ap.add_argument("--audio", required=True, help="Path to episode audio-master.wav")
     ap.add_argument("--endslate", required=True, help="Path to endslate PNG")
@@ -157,6 +192,11 @@ def main():
         stderr=subprocess.DEVNULL,
     )
 
+    v_dur = probe_stream_dur(clean_master, "v:0")
+    a_dur = probe_stream_dur(clean_master, "a:0")
+    if abs(v_dur - a_dur) >= 0.35:
+        sys.exit(f"Error: audio/video sync drift detected in {clean_master} (video={v_dur:.3f}s, audio={a_dur:.3f}s)")
+
     srt_specs = [
         ("eng", "English", os.path.join(args.srt_dir, f"{slug}.en.srt")),
         ("jpn", "日本語", os.path.join(args.srt_dir, f"{slug}.ja.srt")),
@@ -192,8 +232,9 @@ def main():
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+    render_contact_sheet(clean_master, os.path.join(args.out_dir, "qa-contact-5x3.png"), v_dur, width, height)
 
-    print(f"ASSEMBLE_OK {slug} -> {clean_master}")
+    print(f"ASSEMBLE_OK {slug} ({v_dur:.2f}s) -> {clean_master}")
 
 
 if __name__ == "__main__":

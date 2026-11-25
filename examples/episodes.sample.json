@@ -17,7 +17,7 @@
           "ja": "彼女はただの傀儡のはずだった。\nあなたが見つめるまでは。",
           "zh": "她本该只是一具无灵的傀儡。\n直到你看向了她。",
           "flow_mode": "Ingredients to Video (hero-stage1.jpg)",
-          "flow_prompt": "Extreme macro underwater cinema shot in pitch-dark abyssal teal water, this tiny translucent glowing emerald-gold spore suspended in the center suddenly opens her luminous eyes wide, sending a circular shockwave of emerald-gold bioluminescent light outward, volumetric water particles, dark calm lower third, vertical 9:16, no text."
+          "flow_prompt": "Extreme macro underwater cinema shot in pitch-dark abyssal teal water, this tiny translucent glowing emerald-gold spore suspended in the center suddenly opens her luminous eyes wide, sending a circular shockwave of emerald-gold bioluminescent light outward, volumetric water particles, full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text."
         },
         {
           "id": "s02",
@@ -28,7 +28,7 @@
           "ja": "深淵の潮流が迫りくる。\n次回、夜明け前の七度の死。",
           "zh": "深渊暗流已然涌动。\n下集：黎明前的七次碎灭。",
           "flow_mode": "Text to Video",
-          "flow_prompt": "Sweeping vertical underwater wide shot looking down into a colossal dark trench where violent violet-blue bioluminescent currents spiral upward toward a tiny golden spark, purely non-humanoid environment, dark calm lower third, vertical 9:16, no text."
+          "flow_prompt": "Sweeping vertical underwater wide shot looking down into a colossal dark trench where violent violet-blue bioluminescent currents spiral upward toward a tiny golden spark, purely non-humanoid environment, full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text."
         }
       ]
     }

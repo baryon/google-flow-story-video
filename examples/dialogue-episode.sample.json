@@ -1,0 +1,26 @@
+{
+  "ep": 1,
+  "slug": "ep01",
+  "title_en": "The Burnt Lantern",
+  "title_ja": "焦げたランタン",
+  "title_zh": "烧焦的提灯",
+  "tone": "wonder",
+  "endslate_seconds": 3.8,
+  "acts": [
+    {
+      "id": "act1",
+      "src": "https://flow-content.google/video/00000000-0000-0000-0000-000000000101?Expires=1800000000&KeyName=labs-flow-prod-cdn-key&Signature=REPLACE_WITH_ACT1_URL",
+      "dialogue_gain": 1.25
+    },
+    {
+      "id": "act2",
+      "src": "https://flow-content.google/video/00000000-0000-0000-0000-000000000102?Expires=1800000000&KeyName=labs-flow-prod-cdn-key&Signature=REPLACE_WITH_ACT2_URL",
+      "dialogue_gain": 1.25
+    },
+    {
+      "id": "act3",
+      "src": "https://flow-content.google/video/00000000-0000-0000-0000-000000000103?Expires=1800000000&KeyName=labs-flow-prod-cdn-key&Signature=REPLACE_WITH_ACT3_URL",
+      "dialogue_gain": 1.25
+    }
+  ]
+}
