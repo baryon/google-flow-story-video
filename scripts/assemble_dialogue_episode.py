@@ -156,8 +156,10 @@ def main():
     ap.add_argument("--endslate", required=True, help="Path to endslate PNG")
     ap.add_argument("--out-dir", required=True, help="Output directory for raw acts, masters, and QA sheet")
     ap.add_argument("--srt-dir", default="", help="Optional directory containing <slug>.<lang>.srt files")
-    ap.add_argument("--bgm", default="", help="Optional external BGM file (defaults to built-in stereo tone synth)")
-    ap.add_argument("--bgm-volume", type=float, default=0.82, help="Continuous BGM base volume before ducking (default: 0.82)")
+    ap.add_argument("--bgm", default="", help="Optional external BGM file (overrides episode JSON bgm.src; defaults to built-in synth)")
+    ap.add_argument("--bgm-start", type=float, default=None, help="Optional start offset in seconds for external BGM slice")
+    ap.add_argument("--bgm-volume", type=float, default=None, help="BGM base volume before sidechain ducking (defaults: 0.86 with cues, 0.50 external flat, 0.82 built-in synth)")
+    ap.add_argument("--bgm-cues", default="", help="Optional JSON file or inline JSON array of [time_sec, gain] cosine S-curve keyframes")
     ap.add_argument("--size", default="1080x1920", help="Target output resolution WxH (default: 1080x1920)")
     ap.add_argument("--fps", type=int, default=30, help="Target frame rate (default: 30)")
     ap.add_argument("--force", action="store_true", help="Ignore segment cache and re-encode all acts")
@@ -287,11 +289,33 @@ def main():
     total_dur = round(cursor + endslate_dur, 3)
 
     # 2. Concatenate all segments in PCM domain (-filter_complex concat=n=N:v=1:a=1) + sidechain ducked BGM
+    ep_bgm = ep.get("bgm") if isinstance(ep.get("bgm"), dict) else {}
+    bgm_src = args.bgm or ep_bgm.get("src", "")
+    bgm_start = args.bgm_start if args.bgm_start is not None else float(ep_bgm.get("start_seconds", 0.0))
+    bgm_rms = ep_bgm.get("target_rms_db", -18.0)
+    bgm_cues = ep_bgm.get("cues") or None
+    if args.bgm_cues:
+        if os.path.exists(args.bgm_cues):
+            with open(args.bgm_cues, encoding="utf-8") as cf:
+                bgm_cues = json.load(cf)
+        else:
+            bgm_cues = json.loads(args.bgm_cues)
+
     bgm_wav = os.path.join(args.out_dir, "continuous-bgm.wav")
-    if args.bgm:
-        prepare_external_bgm(args.bgm, bgm_wav, total_dur)
+    if bgm_src:
+        if not os.path.exists(bgm_src):
+            sys.exit(f"Error: external BGM file not found: {bgm_src}")
+        prepare_external_bgm(
+            bgm_src, bgm_wav, total_dur,
+            start_seconds=bgm_start,
+            target_rms_db=None if bgm_rms is None else float(bgm_rms),
+            cues=bgm_cues,
+        )
+        default_vol = 0.86 if bgm_cues else 0.50
+        bgm_vol = args.bgm_volume if args.bgm_volume is not None else float(ep_bgm.get("volume", default_vol))
     else:
         synthesize_ambient(bgm_wav, total_dur, tone, act_starts)
+        bgm_vol = args.bgm_volume if args.bgm_volume is not None else 0.82
 
     n_seg = len(norm_segments)
     cmd = ["ffmpeg", "-y"]
@@ -304,7 +328,7 @@ def main():
     fc_master = (
         f"{concat_pairs}concat=n={n_seg}:v=1:a=1[vcat][dlg];"
         f"[dlg]asplit=2[dlg_sc][dlg_mix];"
-        f"[{bgm_idx}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={args.bgm_volume:.3f}[bgm0];"
+        f"[{bgm_idx}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={bgm_vol:.3f}[bgm0];"
         f"[bgm0][dlg_sc]sidechaincompress=threshold=0.025:ratio=6:attack=35:release=650:makeup=1.0[bgm_duck];"
         f"[dlg_mix][bgm_duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
         f"alimiter=limit=0.95[aout]"

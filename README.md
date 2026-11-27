@@ -24,8 +24,8 @@ flowchart TD
 2. **结构化「角色与光影圣经（`bible.json`）」自动编译校验**
    - `compile_prompts.py` 将全局画风、光影色温及每个角色的固定外观词（`visual_tag`）与声线词（`voice_tag`）程序化注入每条提示词，跑完 80 个镜头零漂移；
    - 开拍前自动静态拦截「单镜超过 2 张参考图（防串色）」「单拍台词超过 12 词（防 8s 切词）」及自动补齐 `full-bleed 9:16 edge-to-edge, NO black bars` 防黑边后缀。
-3. **广播级混音与单镜级秒级热替换缓存**
-   - 统一采用 **48kHz 立体声 PCM 解码拼接**（杜绝多段 AAC `-c copy` 尾段丢声），内置 8 种调性氛围合成器 + `sidechaincompress` 对白自动闪避 + `silencedetect` 零死寂校验 + 音画同步 `< 0.35s` 硬断言；
+3. **广播级动态配乐混音与单镜级秒级热替换缓存**
+   - 统一采用 **48kHz 立体声 PCM 解码拼接**（杜绝多段 AAC `-c copy` 尾段丢声），支持接入项目原创主题曲（按情绪切乐段 + `-18 dB` 统一 RMS 归一化 + **平滑余弦 S 曲线分场景动态包络 `bgm.cues`**）或内置 8 种调性合成器，并叠加 `sidechaincompress` 对白自动闪避 + `silencedetect` 零死寂校验 + 音画同步 `< 0.35s` 硬断言；
    - 内置 URL 指纹追踪（`raw/<id>.url`）与 SHA-256 分镜签名缓存（`*.sig`）：哪一镜抽崩了只需重跑那 8 秒并替换 URL，重跑脚本将 **0 毫秒跳过其余所有未改镜头**，数秒内热更新整条成片。
 4. **免弹窗签名 CDN 直链下载与 15 帧矩阵质检**
    - 直接提取 `flow-content.google` 签名视频直链并用 `curl` 高速拉取，彻底避开 Chrome 下载隐藏临时文件（`.com.google.Chrome.*`）与串镜问题；

@@ -111,20 +111,94 @@ def synthesize_ambient(out_wav: str, total_dur: float, tone: str, scene_starts: 
         wf.writeframes(buf)
 
 
-def prepare_external_bgm(bgm_src: str, out_wav: str, total_dur: float):
-    fade_out_st = max(0.1, total_dur - 1.6)
-    af = (
-        f"aresample=48000,aformat=channel_layouts=stereo,"
-        f"afade=t=in:st=0:d=1.1,afade=t=out:st={fade_out_st:.3f}:d=1.6"
-    )
-    subprocess.check_call(
-        [
-            "ffmpeg", "-y", "-stream_loop", "-1", "-i", bgm_src,
-            "-t", f"{total_dur:.3f}", "-af", af, "-ar", "48000", "-ac", "2", out_wav,
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+def _measure_wav_rms_db(wav_path: str) -> float:
+    with wave.open(wav_path, "rb") as wf:
+        raw = wf.readframes(wf.getnframes())
+    if not raw:
+        return -60.0
+    samples = struct.unpack(f"<{len(raw) // 2}h", raw)
+    rms = math.sqrt(sum(s * s for s in samples) / max(1, len(samples))) / 32768.0
+    return 20.0 * math.log10(max(rms, 1e-6))
+
+
+def _eval_cosine_envelope(t: float, keyframes: list[tuple[float, float]]) -> float:
+    if t <= keyframes[0][0]:
+        return keyframes[0][1]
+    for i in range(len(keyframes) - 1):
+        t0, g0 = keyframes[i]
+        t1, g1 = keyframes[i + 1]
+        if t <= t1:
+            u = (t - t0) / max(1e-6, t1 - t0)
+            s = 0.5 - 0.5 * math.cos(math.pi * u)
+            return g0 + (g1 - g0) * s
+    return keyframes[-1][1]
+
+
+def prepare_external_bgm(
+    bgm_src: str,
+    out_wav: str,
+    total_dur: float,
+    start_seconds: float = 0.0,
+    target_rms_db: float | None = -18.0,
+    cues: list[list[float]] | list[tuple[float, float]] | None = None,
+):
+    """Prepare a 48kHz stereo external BGM bed with optional slice start, uniform RMS normalization,
+    smooth piecewise cosine S-curve dynamic cues, and boundary fades."""
+    tmp_slice = out_wav + ".slice.wav"
+    tmp_norm = out_wav + ".norm.wav"
+    try:
+        cmd_slice = ["ffmpeg", "-y", "-stream_loop", "-1"]
+        if start_seconds > 0.0:
+            cmd_slice += ["-ss", f"{start_seconds:.3f}"]
+        cmd_slice += [
+            "-i", bgm_src, "-t", f"{total_dur:.3f}",
+            "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", tmp_slice,
+        ]
+        subprocess.check_call(cmd_slice, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        fade_out_st = max(0.1, total_dur - 1.6)
+        af_parts = ["aresample=48000", "aformat=channel_layouts=stereo"]
+        if target_rms_db is not None:
+            cur_db = _measure_wav_rms_db(tmp_slice)
+            gain_db = max(-12.0, min(14.0, target_rms_db - cur_db))
+            af_parts.append(f"volume={gain_db:.2f}dB")
+            af_parts.append("alimiter=limit=0.92")
+        af_parts.append("afade=t=in:st=0:d=1.0")
+        af_parts.append(f"afade=t=out:st={fade_out_st:.3f}:d=1.6")
+
+        stage_out = tmp_norm if cues else out_wav
+        subprocess.check_call(
+            [
+                "ffmpeg", "-y", "-i", tmp_slice,
+                "-af", ",".join(af_parts),
+                "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", stage_out,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+        if cues:
+            kfs = sorted((float(k[0]), max(0.0, float(k[1]))) for k in cues)
+            with wave.open(tmp_norm, "rb") as wf:
+                sr = wf.getframerate()
+                nframes = wf.getnframes()
+                raw_bytes = wf.readframes(nframes)
+            pcm = struct.unpack(f"<{nframes * 2}h", raw_bytes)
+            buf = bytearray(len(raw_bytes))
+            for i in range(nframes):
+                g = _eval_cosine_envelope(i / sr, kfs)
+                l = max(-32767, min(32767, int(pcm[2 * i] * g)))
+                r = max(-32767, min(32767, int(pcm[2 * i + 1] * g)))
+                struct.pack_into("<hh", buf, i * 4, l, r)
+            with wave.open(out_wav, "wb") as wf:
+                wf.setnchannels(2)
+                wf.setsampwidth(2)
+                wf.setframerate(sr)
+                wf.writeframes(buf)
+    finally:
+        for tmp_p in (tmp_slice, tmp_norm):
+            if os.path.exists(tmp_p):
+                os.unlink(tmp_p)
 
 
 def main():
@@ -236,13 +310,25 @@ def main():
                     f.write("\n".join(lines))
 
         amb_path = os.path.join(ep_dir, "ambient.wav")
-        if args.bgm:
-            prepare_external_bgm(args.bgm, amb_path, total_dur)
+        ep_bgm = ep.get("bgm") if isinstance(ep.get("bgm"), dict) else {}
+        bgm_src = args.bgm or ep_bgm.get("src", "")
+        bgm_start = float(ep_bgm.get("start_seconds", 0.0))
+        bgm_rms = ep_bgm.get("target_rms_db", -18.0)
+        bgm_cues = ep_bgm.get("cues") or None
+        if bgm_src:
+            prepare_external_bgm(
+                bgm_src, amb_path, total_dur,
+                start_seconds=bgm_start,
+                target_rms_db=None if bgm_rms is None else float(bgm_rms),
+                cues=bgm_cues,
+            )
+            eff_bgm_vol = float(ep_bgm.get("volume", 0.85 if bgm_cues else 0.42))
         else:
             synthesize_ambient(amb_path, total_dur, ep.get("tone", "mythic"), [item["start"] for item in timeline])
+            eff_bgm_vol = args.bgm_volume
 
         cmd = ["ffmpeg", "-y", "-i", amb_path]
-        filter_parts = [f"[0:a]volume={args.bgm_volume:.3f}[amb]"]
+        filter_parts = [f"[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,volume={eff_bgm_vol:.3f}[amb]"]
         vo_labels = []
         for idx, item in enumerate(timeline):
             if item["voStart"] is None:
@@ -252,18 +338,31 @@ def main():
             delay_ms = int(round(item["voStart"] * 1000))
             label = f"v{idx}"
             filter_parts.append(
-                f"[{in_idx}:a]aresample=48000,aformat=channel_layouts=stereo,"
+                f"[{in_idx}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,"
                 f"highpass=f=85,equalizer=f=240:t=q:w=1.2:g=2.5,"
                 f"aecho=0.8:0.85:55|110:0.18|0.09,"
                 f"volume=1.35,adelay={delay_ms}|{delay_ms}[{label}]"
             )
             vo_labels.append(f"[{label}]")
 
-        mix_inputs = "[amb]" + "".join(vo_labels)
-        filter_parts.append(
-            f"{mix_inputs}amix=inputs={len(vo_labels) + 1}:duration=first:dropout_transition=2:normalize=0,"
-            f"alimiter=limit=0.95[out]"
-        )
+        if bgm_src and vo_labels:
+            filter_parts.append(
+                f"{''.join(vo_labels)}amix=inputs={len(vo_labels)}:duration=longest:dropout_transition=0:normalize=0,"
+                f"apad=whole_dur={total_dur:.3f},atrim=0:{total_dur:.3f},asplit=2[vo_sc][vo_mix]"
+            )
+            filter_parts.append(
+                "[amb][vo_sc]sidechaincompress=threshold=0.02:ratio=5:attack=35:release=600:makeup=1.0[amb_duck]"
+            )
+            filter_parts.append(
+                "[vo_mix][amb_duck]amix=inputs=2:duration=first:dropout_transition=0:normalize=0,"
+                "alimiter=limit=0.95[out]"
+            )
+        else:
+            mix_inputs = "[amb]" + "".join(vo_labels)
+            filter_parts.append(
+                f"{mix_inputs}amix=inputs={len(vo_labels) + 1}:duration=first:dropout_transition=2:normalize=0,"
+                f"alimiter=limit=0.95[out]"
+            )
         master_wav = os.path.join(ep_dir, f"{slug}-audio-master.wav")
         cmd += ["-filter_complex", ";".join(filter_parts), "-map", "[out]", "-ar", "48000", "-ac", "2", master_wav]
         subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

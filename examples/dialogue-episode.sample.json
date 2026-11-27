@@ -6,6 +6,20 @@
   "title_zh": "烧焦的提灯",
   "tone": "wonder",
   "endslate_seconds": 3.8,
+  "bgm": {
+    "src": "",
+    "start_seconds": 0.0,
+    "target_rms_db": -18.0,
+    "volume": 0.86,
+    "cues": [
+      [0.0, 0.18],
+      [9.5, 0.06],
+      [14.0, 0.72],
+      [30.5, 0.22],
+      [39.0, 0.06],
+      [46.0, 0.54]
+    ]
+  },
   "acts": [
     {
       "id": "act1",

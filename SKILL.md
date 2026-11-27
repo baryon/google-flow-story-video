@@ -149,7 +149,7 @@ python3 "$SKILL_DIR/scripts/build_animatic.py" \
     --srt-dir ./build/audio/ep01 \
     --out-dir ./build/masters/ep01
   ```
-- **Mode C 角色演戏合成**（内置 48kHz PCM 解码拼接防 AAC 截断、`sidechaincompress` 全程自动闪避 BGM、`silencedetect=n=-45dB:d=1.0` 零死寂校验与音画同步 `< 0.35s` 硬断言）：
+- **Mode C 角色演戏合成**（内置 48kHz PCM 解码拼接防 AAC 截断、原创主题曲统一 `-18 dB` RMS 归一化、**按剧情节点平滑余弦 S 曲线动态 BGM 包络** + `sidechaincompress` 对白自动闪避、`silencedetect=n=-45dB:d=1.0` 零死寂校验与音画同步 `< 0.35s` 硬断言）：
   ```bash
   python3 "$SKILL_DIR/scripts/assemble_dialogue_episode.py" \
     --episode ./build/flow/ep01/dialogue-episode.json \
@@ -157,6 +157,9 @@ python3 "$SKILL_DIR/scripts/build_animatic.py" \
     --srt-dir ./build/subs/ep01 \
     --out-dir ./build/masters/ep01
   ```
+- **配乐与 Mode C 词级对齐最佳实践**：
+  1. **原创主题曲优先 + 动态分镜包络**：若项目已有主题音乐，优先在 `dialogue-episode.json`（或 `episodes.json`）的 `bgm` 字段配置 `src`、`start_seconds`（按本集情绪切乐段）、`target_rms_db`（默认 `-18.0`，防跨集响度跳变）与 `cues: [[秒数, 增益], ...]`（内置合成音床仅作兜底）。参考区间：**抖包袱/反派威慑/爆发前蓄力抽空 `0.04–0.08`**，常规对白 `0.14–0.22`，欢快过渡 `0.28–0.40`，破茧/战斗高潮 `0.62–0.78`，品牌落版 `0.50–0.54`（略低于人声不喧宾夺主）。
+  2. **原声时间戳对齐与尾词防截断**：拉回 Flow 原片后，先用原声转录（如 Whisper 词级时间戳）或尾部 RMS 波形核对每幕真实开口秒数，并检查末尾 `0.3s` 是否刚吐出半个词（若切词则用 `ffmpeg -t` 精准裁在上一句停顿处），再据此写入毫秒对齐 `.srt` 与 `bgm.cues`。
 - **交付前强制质检**：两套脚本均自动生成 `qa-contact-5x3.png`（全片 15 帧 `5×3` 缩略图矩阵），交付前必须用 `read_file` 打开肉眼核查：**零黑边、零串色、零风格漂移、零人形误画**。
 
 ---
