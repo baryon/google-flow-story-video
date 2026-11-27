@@ -185,13 +185,14 @@ STRICTLY NO text, NO watermark, NO UI, NO split screen, NO multi-view grid.
 - **图文镜像一致（防跨幕变脸）**：`bible.json` 的 `visual_tag` 必须如实匹配定妆图实际五官与质感，不混写冲突物种词，必要时显式锁定眼型与皮肤质感（如 `exact face from reference image, big round eyes, smooth skin, NO slit reptile eyes, NO coarse scales`）。
 - **动画风格题材必加**：固定画风锚点词，逐张 `read_file` 肉眼确认无写实漂移、无文字、无黑边后再上传；升级前后的各阶段在 `bible.json` 中分键建档（如 `hero_stage1` / `hero_stage2`），同一阶段内跨集严禁换图。
 
-### 5.2 何时用 `Ingredients` vs 何时用 `Frames（首尾帧）`
+### 5.2 何时用 `Frames（首帧锁脸）` vs `Ingredients（素材）`
 
-| 场景 | 正确模式 | 挂图方式 |
+| 场景 | 正确模式 | 挂图方式与硬校验 |
 |---|---|---|
-| 常规叙事分镜 / 角色开口演戏 | `Ingredients / 素材` | 挂 **1–2 张**定妆图（严禁 ≥ 3 张防串色） |
+| **多集连载主线（防跨幕/跨集变脸主力）** | `Frames / 首尾帧`（**Keyframe-First 两段式**） | 先用生图模型结合「角色母版 + 上集标准剧照」生成 `9:16` 首帧关键帧并拼图过审；进 Flow 仅放**首帧槽位（尾帧留空）**，提交前强制断言 **`startHasImg === true` 且 `endHasImg === false`**（弹窗选中后必点 `プロンプトに追加`） |
 | **同场超过 15s 继续演戏 / 局部重抽后 8s** | `Frames / 首尾帧`（**真视频尾帧接力法**） | 用 `extract_relay_frame.py` 取上一段清晰尾帧放进**首帧槽位**（**不放尾帧**），保持第 1 代满血清晰度且无果冻变形 |
 | **跨阶段形态进化 / 破茧蜕变 / 时空平滑流转** | `Frames / 首尾帧` | 首帧放形态 A 定妆图，尾帧放形态 B 定妆图，描述流体蜕变光影动作 |
+| 快速单镜探索 / 纯空镜奇观 | `Ingredients / 素材` | 挂 **1–2 张**定妆图（严禁 ≥ 3 张防串色） |
 
 ### 5.3 Mode VO 镜头五段式公式（8s）
 

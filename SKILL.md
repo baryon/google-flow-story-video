@@ -41,7 +41,7 @@ flowchart TD
   Mode -->|"Mode VO · 旁白史诗 / 10min 长片"| VO1["build_audio_and_srt.py 声音先行\n长片可选 build_animatic.py 故事板预审"]
   VO1 --> VO2["Google Flow 分章跑 8s 镜头\n单镜 <= 2 张参考图"]
   VO2 --> VO3["提取 flow-content.google 直链\nassemble_episode.py 单镜增量缓存秒拼"]
-  Mode -->|"Mode C · 角色直接演戏"| C1["Google Flow 跑三幕微长镜\n15-18s 单次续写 或 extract_relay_frame.py 尾帧接力"]
+  Mode -->|"Mode C · 角色直接演戏"| C1["先出 9:16 跨集锁脸首帧关键帧 -> 肉眼过审\nGoogle Flow Frames 仅锁首帧 + 单次续写 / 尾帧接力"]
   C1 --> C2["提取直链 + assemble_dialogue_episode.py\n48kHz PCM 拼接 + 自动闪避 BGM + 零死寂校验"]
   VO3 --> QA["5x3 十五帧全片缩略图肉眼质检\npackage_season.py 秒拼 10min+ 全季/长片"]
   C2 --> QA
@@ -102,17 +102,22 @@ flowchart TD
 
 ## 2. 视频怎么做（故事板预审 + 防黑边/防串色 + 秒级热替换合成）
 
-### 2.1 全季共享资产：分阶段定妆母版库（防变脸铁律）与矢量片尾
+### 2.1 全季共享资产：先锁关键帧（Keyframe-First）防变脸铁律与矢量片尾
 
-1. **按「角色 × 成长/升级阶段」先定稿标准定妆图（Ingredients）并逐张 `read_file` 肉眼质检**：
-   - **单人 3/4 全身+清晰头部母版**：每个角色（以及每次形态进化/升级后的新阶段，如 `hero_stage1`、`hero_stage2`）开拍前必须先定稿 **1 张**干净的 `9:16` 全画幅单人 3/4 全身定妆图（同时锁定头部五官、头冠与完整身形鳍尾比例）；**严禁向 Flow `Ingredients` 上传多宫格三视图**（易诱发分屏克隆）。
-   - **图文镜像一致铁律**：`bible.json` 的 `visual_tag` 必须严格如实描述该定妆图里的真实五官与材质，**严禁写入与参考图冲突的物种/气质词**（如参考图是光滑圆眼水灵却写 `fierce dragon`，极易在战斗镜漂移成竖瞳鳄鱼脸），并显式加注防漂移护栏（如 `exact face and silhouette from reference image, smooth skin, big round eyes, NO slit reptile eyes, NO coarse scales`）。
+1. **按「角色 × 成长/升级阶段」建档母版，并优先采用「先出 `9:16` 首帧关键帧 → 过审 → Flow `Frames` 动画化」（Keyframe-First）**：
+   - **为什么不用 `Ingredients to Video` 硬扛全季连载**：`Ingredients` 本质是语义重画，每开一个新 Anchor 视频模型都会重新捏一次脸与头身比，跨幕/跨集光影或景别变化时极易漂移。
+   - **黄金两段式锁脸流程（强烈推荐用于多集连载）**：
+     1. **分阶段母版**：每个角色（及每次升级/进化后的新阶段）定稿 1 张干净的 `9:16` 单人 3/4 全身+清晰头部母版图（严禁直接向 Flow 传多宫格三视图）。
+     2. **先出每幕 `9:16` 锁脸首帧关键帧（`kf-epXX-act{1,2,3}.png`）**：用高精度生图模型同时参考「角色标准母版 + **上一集最标准的一张剧照**」，把本幕所有同框出场角色与核心道具一次性画在 Frame 0 上。
+     3. **上视频前的跨集脸部过审闸门**：将三幕首帧与上一集标准剧照拼成对比图 `read_file` 肉眼过审；哪怕五官或比例微漂 10% 也在生图阶段 10 秒重抽，**未过审绝不消耗 Flow 视频积分**。
+     4. **进 Flow 用 `Frames`（仅锁首帧，尾帧留空）+ Extend 动画化**：Frame 0 像素锁死后，Flow 只需让角色开口演戏与自然运镜，跨幕/跨集稳定性跃升一个数量级。同场景跨幕继续搭配 `extract_relay_frame.py` 真视频尾帧接力。
+   - **图文镜像一致铁律**：Prompt 必须严格如实描述首帧/定妆图里的真实五官与质感，**严禁写入与参考图冲突的物种词**（如参考图是光滑圆眼水灵却写 `dragon`，极易漂移成尖嘴鳄鱼脸），并显式加注防漂移护栏。
+   - **跨集分阶段体检与精准热返修**：每完成一幕大剧情（如 5–10 集），按「进化阶段」抽取每集三幕拼成体检图，**只针对真正换脸/跑偏的少数幕**用 Keyframe-First 单独重抽并利用合成缓存秒级热替换，无需整季推倒重做。
    - **严禁黑边后缀**：图片与视频英文 Prompt 中**切勿单独写 `dark calm lower third`**（偶发触发 Flow 在 `y ≈ 998` 硬画黑底条），统一使用：
      ```text
      full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.
      ```
-   - 非人类题材强制追加 `STRICTLY NO humans, NO human faces, NO humanoid torso, NO mermaids`；同场景跨幕续拍优先用 `extract_relay_frame.py` 尾帧接力锁死脸型。
-   - 任何单幕若出现**吞掉核心因果台词**或**同阶段人物跨幕变脸**，严禁迁就，直接重抽该幕并用增量缓存热替换。
+   - 非人类题材强制追加 `STRICTLY NO humans, NO human faces, NO humanoid torso, NO mermaids`；任何单幕若出现**吞掉核心因果台词**或**同阶段人物变脸**，严禁迁就，直接重抽该幕并用增量缓存热替换。
 2. **用无头 Chrome 渲染官方矢量片尾（禁止用 AI 画品牌 Logo）**：
    ```bash
    node "$SKILL_DIR/scripts/render_endslates.mjs" \
@@ -185,17 +190,20 @@ python3 "$SKILL_DIR/scripts/build_animatic.py" \
 | 配置项 | 推荐值（英 / 中 / 日界面文案） | 用途与选型原则 |
 |---|---|---|
 | 媒体类型 | `Video` / `视频` / `動画` | 视频生成模式 |
-| 生成模式 | `Ingredients` / `素材`（主力）<br>`Frames` / `首尾帧` / `フレーム`（接力/蜕变专用） | 常规演戏与叙事用 `Ingredients`；**24s+ 真视频尾帧接力（只挂首帧）**或**跨阶段形态蜕变（挂首尾两帧）**切 `Frames` |
+| 生成模式 | `Frames` / `首尾帧` / `フレーム`（**连载锁脸主力**，仅挂首帧）<br>`Ingredients` / `素材`（快速探索/单镜） | **多集连载强烈推荐 Keyframe-First + `Frames` 仅挂首帧（尾帧留空）**；24s+ 真视频尾帧接力同样仅挂首帧；跨阶段形态蜕变挂首尾两帧 |
 | 模型选择 | **`Omni 1.2 Flash`** | `720p + 9:16 + 8s + x1` 每镜仅 **24 积分**，一致性与口型最佳 |
 | 每次生成数 | **`x1`** | 省一半积分且速度快一倍；单镜崩了单独重抽后热替换即可 |
-| 微长镜续写 | `SceneBuilder` → `Extend` / `继续生成` / `続きを生成` | 同幕最多续写 **1 次**；仍需继续同场演戏时改用 `extract_relay_frame.py` 尾帧接力 |
+| 微长镜续写 | `SceneBuilder` → `Extend` / `继续生成` / `続きを生成` | **新建 SceneBuilder 场景默认是 `16:9`，续写前必须先点 `アスペクト比を切り替える` 切回 `9:16`！** 同幕最多续写 **1 次** |
 
-### 3.3 防串色、防沙盒拦截与防风控操作纪律
+### 3.3 防空挂首帧、防串色、防沙盒拦截与防风控操作纪律
 
-1. **单镜 ≤ 2 张参考图（防串色铁律）**：`Omni 1.2 Flash` 单镜挂 ≥ 3 张参考图极易发生角色配色互染。单人镜挂 `场景 + 角色A`；双人戏挂 `角色A + 角色B` 并文字写环境，或从首拍续写/尾帧接力引入第 2 角色。
-2. **工作区临时目录上传与即时清理**：将定妆图或接力尾帧放入 `<workspace>/.tmp-flow-ingredients/` 完成 `upload_file` 上传后，**立即 `rm -rf <workspace>/.tmp-flow-ingredients/`**。
-3. **8–12 秒自然提交间隔（防风控）**：每次提交保持 **8–12 秒**间隔、并发排队 ≤ 2 条；若遇 `Unusual activity detected / 检测到异常活动 / 通常とは異なるアクティビティが検出されました`，立即停止并请用户手动刷新，严禁绕过。
-4. **双线并行**：复用同一 `browser` 子代理跑第 $N+1$ 章的同时，后台运行本地合成脚本压制第 $N$ 章。
+1. **`Frames` 首帧强挂载断言（防静默退化成纯文生视频！）**：
+   - 在 Flow 的 `フレーム / Frames` 弹窗里点选关键帧条目后，**必须确认点击弹窗内的 `プロンプトに追加 / Add to prompt`**，并在提交前检查底部输入栏 DOM：**首帧槽位（`開始`）必须包含真实缩略图（`startHasImg === true`）且尾帧槽位（`終了`）为空（`endHasImg === false`）**！未确认 `startHasImg === true` 严禁按回车，否则 Flow 会静默跑成无图纯文生视频导致角色彻底换脸。
+   - **首幕早筛闸门**：第 1 幕 `8s` 首拍完成后先截图核对缩略图（既是 `9:16` 竖屏 `288×512` / 枚举 `1`，又精确匹配 `kf-act1.png`），确认锁脸无误再批量推进第 2、3 幕。
+2. **单镜 ≤ 2 张参考图（`Ingredients` 模式防串色铁律）**：`Omni 1.2 Flash` 在 `Ingredients` 模式单镜挂 ≥ 3 张参考图极易发生角色配色互染。若同屏需要 ≥ 2 个角色加复杂场景，直接用 **Keyframe-First + `Frames` 仅锁首帧**，一次性全锁定且零串色。
+3. **工作区临时目录上传与即时清理**：将定妆图、首帧关键帧或接力尾帧放入 `<workspace>/.tmp-flow-ingredients/`（或 `.tmp-flow-keyframes/`）完成 `upload_file` 上传后，**立即 `rm -rf` 清理临时目录**。
+4. **8–12 秒自然提交间隔（防风控）**：每次提交保持 **8–12 秒**间隔、并发排队 ≤ 2 条；若遇 `Unusual activity detected / 检测到异常活动 / 通常とは異なるアクティビティが検出されました`，立即停止并请用户手动刷新，严禁绕过。
+5. **双线并行**：复用同一 `browser` 子代理跑第 $N+1$ 章的同时，后台运行本地合成脚本压制第 $N$ 章。
 
 ---
 
