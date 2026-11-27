@@ -27,9 +27,10 @@ flowchart TD
 3. **广播级动态配乐混音与单镜级秒级热替换缓存**
    - 统一采用 **48kHz 立体声 PCM 解码拼接**（杜绝多段 AAC `-c copy` 尾段丢声），支持接入项目原创主题曲（按情绪切乐段 + `-18 dB` 统一 RMS 归一化 + **平滑余弦 S 曲线分场景动态包络 `bgm.cues`**）或内置 8 种调性合成器，并叠加 `sidechaincompress` 对白自动闪避 + `silencedetect` 零死寂校验 + 音画同步 `< 0.35s` 硬断言；
    - 内置 URL 指纹追踪（`raw/<id>.url`）与 SHA-256 分镜签名缓存（`*.sig`）：哪一镜抽崩了只需重跑那 8 秒并替换 URL，重跑脚本将 **0 毫秒跳过其余所有未改镜头**，数秒内热更新整条成片。
-4. **免弹窗签名 CDN 直链下载与 15 帧矩阵质检**
+4. **免弹窗签名 CDN 直链下载、分阶段角色防变脸与 6 件套社媒交付**
+   - 每个角色及每次形态升级先定稿 3/4 全身+清晰头部母版图并严格图文镜像一致，杜绝跨幕变脸；
    - 直接提取 `flow-content.google` 签名视频直链并用 `curl` 高速拉取，彻底避开 Chrome 下载隐藏临时文件（`.com.google.Chrome.*`）与串镜问题；
-   - 每集自动输出 `qa-contact-5x3.png`（全片 15 帧 `5×3` 缩略图矩阵），收官阶段 `ffmpeg -f concat -c copy` 零重编码秒拼全季/10 分钟长片并生成 YouTube Chapters。
+   - 每集自动输出 `qa-contact-5x3.png`（全片 15 帧 `5×3` 缩略图矩阵）并标配 `<slug>-story.md`（YouTube 简介与 TikTok 短文案伴随文档），收官阶段 `ffmpeg -f concat -c copy` 零重编码秒拼全季/10 分钟长片并生成 YouTube Chapters。
 
 ---
 

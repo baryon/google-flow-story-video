@@ -91,23 +91,28 @@ flowchart TD
     ```
   - 将 `relay-act1b.png` 上传至 Flow 的 **`Frames / 首尾帧 / フレーム` 模式首帧槽位（仅锁首帧，不放尾帧！）** 生成新一段满血清晰度的 `8s` 片段——既重置了第 1 代锐度，又做到崩哪 8 秒只返工哪 8 秒。
 
-### 1.3 文案红线与多语外置字幕规范
+### 1.3 文案红线、叙事连贯与每集伴随剧情文档
 
-1. 正片对白/旁白与字幕中**不出现**「下载、充值、福利、代码、AI、区块链」等出戏词；品牌 Logo 与官网域名（**开拍前必须向用户核准精确域名**）只放在落版。
-2. 母带画面**零硬字幕、零 UI 贴片**，同步生成 `.en.srt`（单行 ≤ 32 字符）、`.ja.srt`（≤ 16 字）、`.zh-Hans.srt`（≤ 14 字），每次最多 2 行。
+1. **一集只讲一个核心事件 + 点名出场**：50s 单集信息密度克制，新角色首次出场必须由对话直接喊出名字与身份；前后两集的因果桥段必须在画面或台词中演清，不让观众靠脑补填坑。
+2. 正片对白/旁白与字幕中**不出现**「下载、充值、福利、代码、AI、区块链」等出戏词；品牌 Logo 与官网域名（**开拍前必须向用户核准精确域名**）只放在落版。
+3. 母带画面**零硬字幕、零 UI 贴片**，同步生成 `.en.srt`（单行 ≤ 32 字符）、`.ja.srt`（≤ 16 字）、`.zh-Hans.srt`（≤ 14 字），每次最多 2 行。
+4. **每集标配「YouTube / TikTok 伴随剧情文档（`<slug>-story.md`）」**：每集交付目录除 2 个 MP4 和 3 份 `.srt` 外，必须附带一份可直接复制粘贴的 `<slug>-story.md`（含英/中/日三语 **YouTube 简介版**——前情提要、本集看点、本集出场人物与当前进化形态速认、下集预告与官网链接——及 **TikTok/Shorts 短文案+标签版**），确保空降单集的观众 10 秒读懂前因后果。
 
 ---
 
 ## 2. 视频怎么做（故事板预审 + 防黑边/防串色 + 秒级热替换合成）
 
-### 2.1 全季共享资产：Ingredients 定妆图与矢量片尾
+### 2.1 全季共享资产：分阶段定妆母版库（防变脸铁律）与矢量片尾
 
-1. **生成 6–8 张共享定妆图（Ingredients）并逐张 `read_file` 肉眼质检**：
+1. **按「角色 × 成长/升级阶段」先定稿标准定妆图（Ingredients）并逐张 `read_file` 肉眼质检**：
+   - **单人 3/4 全身+清晰头部母版**：每个角色（以及每次形态进化/升级后的新阶段，如 `hero_stage1`、`hero_stage2`）开拍前必须先定稿 **1 张**干净的 `9:16` 全画幅单人 3/4 全身定妆图（同时锁定头部五官、头冠与完整身形鳍尾比例）；**严禁向 Flow `Ingredients` 上传多宫格三视图**（易诱发分屏克隆）。
+   - **图文镜像一致铁律**：`bible.json` 的 `visual_tag` 必须严格如实描述该定妆图里的真实五官与材质，**严禁写入与参考图冲突的物种/气质词**（如参考图是光滑圆眼水灵却写 `fierce dragon`，极易在战斗镜漂移成竖瞳鳄鱼脸），并显式加注防漂移护栏（如 `exact face and silhouette from reference image, smooth skin, big round eyes, NO slit reptile eyes, NO coarse scales`）。
    - **严禁黑边后缀**：图片与视频英文 Prompt 中**切勿单独写 `dark calm lower third`**（偶发触发 Flow 在 `y ≈ 998` 硬画黑底条），统一使用：
      ```text
      full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders, no text.
      ```
-   - 非人类题材强制追加 `STRICTLY NO humans, NO human faces, NO humanoid torso, NO mermaids`；特定动画画风强制统一风格锚点，检出写实/人形漂移立即重抽。
+   - 非人类题材强制追加 `STRICTLY NO humans, NO human faces, NO humanoid torso, NO mermaids`；同场景跨幕续拍优先用 `extract_relay_frame.py` 尾帧接力锁死脸型。
+   - 任何单幕若出现**吞掉核心因果台词**或**同阶段人物跨幕变脸**，严禁迁就，直接重抽该幕并用增量缓存热替换。
 2. **用无头 Chrome 渲染官方矢量片尾（禁止用 AI 画品牌 Logo）**：
    ```bash
    node "$SKILL_DIR/scripts/render_endslates.mjs" \

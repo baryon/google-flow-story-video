@@ -169,17 +169,21 @@
 
 ## 5. Ingredients、`Frames` 首尾帧与视频提示词公式
 
-### 5.1 Ingredients 定妆图提示词模板（严禁写 `dark lower third`）
+### 5.1 Ingredients 分阶段定妆母版提示词模板（严禁写 `dark lower third`）
+
+每个角色及每次进化升级后的新阶段，都应先生成并定稿 **1 张单人 3/4 全身+清晰头部母版图**（切勿把多宫格三视图直接喂给 Flow `Ingredients`）：
 
 ```text
+3/4 full-body character model portrait showing clear head/facial features and full body proportions,
 [Subject / Environment core design], [consistent art style & lighting palette],
 subject centered in the upper-middle frame with clean uncluttered space in the lower quarter,
 full-bleed 9:16 edge-to-edge, NO black bars, NO letterbox, NO borders,
-STRICTLY NO text, NO watermark, NO UI.
+STRICTLY NO text, NO watermark, NO UI, NO split screen, NO multi-view grid.
 ```
 
 - **非人类题材必加**：`STRICTLY NO humans, NO human faces, NO humanoid torso, NO mermaids.`
-- **动画风格题材必加**：固定画风锚点词，逐张 `read_file` 肉眼确认无写实漂移、无文字、无黑边后再上传。
+- **图文镜像一致（防跨幕变脸）**：`bible.json` 的 `visual_tag` 必须如实匹配定妆图实际五官与质感，不混写冲突物种词，必要时显式锁定眼型与皮肤质感（如 `exact face from reference image, big round eyes, smooth skin, NO slit reptile eyes, NO coarse scales`）。
+- **动画风格题材必加**：固定画风锚点词，逐张 `read_file` 肉眼确认无写实漂移、无文字、无黑边后再上传；升级前后的各阶段在 `bible.json` 中分键建档（如 `hero_stage1` / `hero_stage2`），同一阶段内跨集严禁换图。
 
 ### 5.2 何时用 `Ingredients` vs 何时用 `Frames（首尾帧）`
 
@@ -212,3 +216,22 @@ Spoken dialogue finishes in the first 4.5 seconds, followed by 3 seconds of expr
 | 英文（English） | `.en.srt` | ≤ 32 字符 | 2 行 | 按意群自然断行，避免介词或冠词孤立在行尾 |
 | 日文（日本語） | `.ja.srt` | ≤ 16 全角字 | 2 行 | 贴合角色口吻，专有名词与人名全季统一写法 |
 | 简体中文 | `.zh-Hans.srt` | ≤ 14 字 | 2 行 | 短句有力，与角色开口及情绪重音毫秒级对齐 |
+
+---
+
+## 7. 单集 YouTube / TikTok 伴随剧情文档模板（`<slug>-story.md`）
+
+每集交付目录标配 6 个文件：`*-clean.mp4`、`*-multilang.mp4`、`.en/.ja/.zh-Hans.srt` 与 `<slug>-story.md`。文档需确保**只点开这一集的空降观众**读完简介就能立刻看懂，结构如下（按发布语种提供 EN / ZH / JA）：
+
+```markdown
+# Episode N — <English Title> /《中文标题》/《日本語タイトル》
+
+## YouTube Description (Copy & Paste)
+- **Previously on <Series>**（2 句前情提要：交代上集发生了什么、主角当前目标）
+- **What Happens in Episode N**（3–4 句大白话本集剧情，不堆砌未解释术语）
+- **Characters in This Episode**（本集出场人物列表：名字 + 颜色/外观特征 + 身份 + 若升级则标明新形态）
+- **Coming Up Next (Episode N+1)**（1 句下集悬念引子 + 官网链接）
+
+## TikTok / Shorts Caption (Short Copy & Paste)
+- 2–3 句高钩子短文案 + 前情括号提示 + 官网与核心标签（EN / ZH / JA）
+```
